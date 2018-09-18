@@ -14,6 +14,7 @@ $SubprocessKernelExtension::usage="The extension for the kernel name";
 OpenSubprocessNotebook::usage="Opens an a subprocess notebook";
 StartSubprocessREPL::usage="Starts the subprocess REPL";
 $SubprocessREPLSettings::usage="Settings for the subprocess REPL";
+$OriginalParentLink::usage="The original $ParentLink for the subprocess";
 
 
 Begin["`Private`"]
@@ -154,7 +155,7 @@ logEcho[event_]:=
 
 exitSubprocessREPL[]:=
   (
-    $ParentLink=Null;
+    $ParentLink=$OriginalParentLink;
     Quiet[LinkClose@$SubprocessKernel];
     Quiet[LinkClose@$SubprocessFrontEnd];
     )
@@ -278,7 +279,7 @@ processPacket[___]:=None;
 packetWrite[linkName_, response_, packet_, dest_, link_, linkWrite_, stdoutWrite_]:=
  If[response=!=None,
    If[dest==="STDOUT",
-      Block[{$ParentLink=Null},
+      Block[{$ParentLink=$OriginalParentLink},
         stdoutWrite[
           Flatten[{response}], 
           packet
@@ -457,7 +458,7 @@ subprocessNonBlockingREPL[]:=
     ]
 
 
-StartSubprocessREPL[]:=
+StartSubprocessREPL[startRepl_]:=
   With[
     {
       blocking=
@@ -481,20 +482,28 @@ StartSubprocessREPL[]:=
         .1
         ]
       ];
+      
     If[StringQ@$SubprocessREPLSettings["InitializationMessage"],
       Print@$SubprocessREPLSettings["InitializationMessage"]
       ];
     
+    $OriginalParentLink=$ParentLink;
     $ParentLink=$SubprocessKernel;
     
-    If[blocking,
-      subprocessBlockingREPL[];,
-      subprocessNonBlockingREPL[]
-     ];
+    If[startRepl,
+      If[blocking,
+        subprocessBlockingREPL[];,
+        subprocessNonBlockingREPL[]
+       ]
+      ];
     ]
 
 
-OpenSubprocessNotebook[retry:True|False:True]:=
+Options[OpenSubprocessNotebook]=
+  {
+    "StartREPL"->True
+    };
+OpenSubprocessNotebook[retry:True|False:True, ops:OptionsPattern[]]:=
  Module[{res},
    startSubprocessFrontEnd[];
    startSubprocessKernel[];
@@ -510,7 +519,7 @@ OpenSubprocessNotebook[retry:True|False:True]:=
        $Failed,
      True,
        configureSubprocessFrontEnd[];
-       StartSubprocessREPL[];
+       StartSubprocessREPL[TrueQ@OptionValue["StartREPL"]];
        res
      ]
    ]
